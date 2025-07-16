@@ -16,16 +16,19 @@ Expected header for WARC file is: WARC/1.0
 * es|dm
 
       es - Split/dump mode. Read the WARC headers into memory and write out. 
-      The WARC header content is written to files with file name corresponding to the record id in the file.
+      The WARC header content is written to files with file name corresponding
+      to the record id in the file.
       File is written only when WARC CONTENT_LENGTH present and filled value is larger than 0.
       WARC headers fields are swapped with id's (see table below).
       This option creates multiple output files.
   
       dm - In decode mode the WARC header file is read into the memory.
-      After that the output file is created by writing the header and reading/writing its corresponding content file if any.
+      After that the output file is created by writing the header and reading/writing
+      its corresponding content file if any.
 * l{n}
 
-      List WARC header record WARC_TYPE=="response" field values. Default is target-uri's (n=15) to output file.
+      List WARC header record WARC_TYPE=="response" field values.
+      Default is target-uri's (n=14) to output file.
       n can be value in the range of 0-26. (see table below)
 
 # Memory usage
