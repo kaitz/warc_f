@@ -10,14 +10,14 @@ Expected header for WARC file is: WARC/1.0
       Read a whole WARC file into memory and write out the WARC header followed by the content.
       WARC headers fields are swapped with id's (see table below).
   
-      In decode mode the program reads in the WARC header and restores the original file. 
+      In decode mode the program reads in the WARC header and restors the original file. 
       Warning: Be sure that you have enough free memory (e option).
       This option creates only one output file.
 * es|dm
 
       Split/dump mode. Read the WARC headers into memory and write out. 
       The WARC header content is written to files with file name corresponding to the record id in the file.
-      File is written only when WARC CONTENT_LENGTH present and filed value is larger than 0.
+      File is written only when WARC CONTENT_LENGTH present and filled value is larger than 0.
       WARC headers fields are swapped with id's (see table below).
       This option creates multiple output files.
   
