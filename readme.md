@@ -29,8 +29,8 @@ Expected header for WARC file is: WARC/1.0
       n can be value in the range of 0-26. (see table below)
 
 # Memory usage
-  * e - size of the file
-  * d,es,dm,l - size of the WARC header size
+  * e,d - size of the file
+  * es,dm,l - size of the WARC header size
 
 # WARC field types and values
 These field values are used internally. 
