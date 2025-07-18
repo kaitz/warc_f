@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string>
 #include <algorithm>
-
+// v0.2
 namespace warcfile {
 
 static const char CR=0x0d;
@@ -150,8 +150,8 @@ class Reader{
             block.resize(len);
             return block;
         }
-        std::string const &LastLine() { return line; }
-        EnumLineTypes const LineType() { return linetype; }
+        std::string const &LastLine() { return line;}
+        EnumLineTypes const LineType() { return linetype;}
         bool End() { return isEOF; }
         void close() {fclose(in); }
         void seek(int len) {fseek(in, len, SEEK_CUR); }
@@ -171,6 +171,75 @@ class WarcRecord {
         std::string content;
         WarcRecord() { };
 };
+std::string SplitString(std::string linef, char spilt, int i) {
+    auto p=std::find(linef.begin(), linef.end(), spilt);
+    std::string fieldn1="";
+    std::string fieldn2="";
+    std::move(linef.begin(), p, std::back_inserter(fieldn1));
+    p++; // ':'
+    std::move(p, linef.end(), std::back_inserter(fieldn2));
+    if (i==0) {
+        return fieldn1;
+    } else if (i==1) {
+        return fieldn2;
+    }else return "";
+                    
+}
+std::string mimeToExt(std::string file) {
+    std::string ext="";
+    std::transform(file.begin(), file.end(), file.begin(), [](unsigned char c){ return std::tolower(c); });
+    if (file=="jpeg") ext=".jpg";
+    else if (file.substr(0,3)=="pdf") ext=".pdf";
+    else if (file=="css" || file.substr(0,4)== "css;") ext=".css";
+    else if (file.substr(0,4)=="html") ext=".html";
+    else if (file=="gif") ext=".gif";
+    else if (file.substr(0,4)=="webp") ext=".webp";
+    else if (file=="woff2" || file=="font-woff2") ext=".woff2";
+    else if (file.substr(0,3)=="zip") ext=".zip";
+    else if (file.substr(0,10)== "javascript"|| file.substr(0,13)== "x-javascript") ext=".js";
+    else if (file=="json" || file.substr(0,5)=="json;") ext=".json";
+    else if (file=="mp4") ext=".mp4";
+    else if (file=="mp2t") ext=".ts";
+    else if (file=="bmp") ext=".bmp";
+    else if (file=="webm") ext=".webm";
+    else if (file=="png") ext=".png";
+    else if (file=="svg+xml") ext=".svg";
+    else if (file.substr(0,8)=="atom+xml") ext=".xml";
+    else if (file.substr(0,7)=="rss+xml") ext=".xml";
+    else if (file.substr(0,7)=="rdf+xml") ext=".xml";
+    else if (file.substr(0,3)=="xml") ext=".xml";
+    else if (file.substr(0,9)=="xhtml+xml") ext=".xml";
+    else if (file.substr(0,12)=="octet-stream") ext=".bin";
+    else if (file.substr(0,5)=="plain") ext=".txt";
+    return ext;
+}
+
+void writeContent(std::string filename,std::string content){
+    FILE *out=fopen(filename.c_str(), "wb");
+    fwrite(&content[0],1,content.size(),out);
+    fclose(out);
+}
+int readContent(std::string filename,std::string &content, int len) {
+    content.resize(len);
+    FILE *in=fopen(filename.c_str(), "rb");
+    int size=fread(&content[0],1,len,in);  
+    fclose(in);
+    return size;
+}
+std::string readFile(std::string filename) {
+    std::string content="";
+    FILE *in=fopen(filename.c_str(), "rb");
+    if (in==NULL) {
+        return "";
+    }
+    fseek(in, 0, SEEK_END);
+    int len=ftell(in);
+    fseeko(in, 0, SEEK_SET);
+    content.resize(len);
+    int size=fread(&content[0],1,len,in);  
+    fclose(in);
+    return content;
+}
 
 class WarcFile {
     private:
@@ -257,13 +326,80 @@ class WarcFile {
             // content
             for(auto i=0; i <records.size(); i++) {
                 std::string content=records[i].content;
-                if (doMergeSplit==false){
-                    fwrite(&content[0],1,records[i].content.size(),out);
-                } else {
-                    std::string contentfile=std::to_string(i);
-                    FILE *cfout=fopen(contentfile.c_str(), "wb");
-                    fwrite(&content[0],1,records[i].content.size(),cfout);
-                    fclose(cfout);
+                if (content.size()>0) {
+                    if (doMergeSplit==false) {
+                        fwrite(&content[0],1,records[i].content.size(),out);
+                    } else {
+                        //split mode
+                        auto p=std::find(content.begin(), content.end(), '\n');
+                        std::string fieldname;
+                        std::string contentfile;
+                        std::move(content.begin(), p-1, std::back_inserter(fieldname));
+                        if (fieldname.size()>1 && (fieldname.substr(0,12)=="HTTP/1.1 200")) {
+                            auto p=std::find(content.begin(), content.end(), '\n');
+                            std::string lflf="\r\n\r\n";
+                            auto p1=std::search(content.begin(), content.end(), lflf.begin(), lflf.end());
+                            fieldname="";
+                            std::move(content.begin(), p1, std::back_inserter(fieldname));
+                            std::string header=fieldname;
+                            std::string del="\r\n";
+                            auto pos = fieldname.find(del);
+                            // Search for content type
+                            std::string ext="";
+                            while (1) {
+                                std::string linef= fieldname.substr(0, pos);
+                                std::string value;
+                                auto p=std::find(linef.begin(), linef.end(), ':');
+                                std::string fieldn="";
+                                const std::string contenttype="content-type";
+                                std::move(linef.begin(), p, std::back_inserter(fieldn));
+                                std::transform(fieldn.begin(), fieldn.end(), fieldn.begin(), [](unsigned char c){ return std::tolower(c); });
+                                int fieldID=fieldn==contenttype?1:0;
+                                p++; // ':'
+                                std::move(p, linef.end(), std::back_inserter(value));
+                                if (fieldID>0) {
+                                    std::string app=SplitString(value,'/',0);
+                                    std::string file=SplitString(value,'/',1);
+                                    ext=mimeToExt(file);
+                                    break;
+                                }
+                                if (pos==std::string::npos) break;
+                                fieldname.erase(0, pos + del.length());
+                                pos=fieldname.find(del);
+                            }
+                            //header
+                            contentfile="h"+std::to_string(i);
+                            writeContent(contentfile,header);
+                            // content after header
+                            p1++;p1++;p1++;p1++; // ':'
+                            fieldname="";
+                            std::move(p1, content.end(), std::back_inserter(fieldname));
+                            if (fieldname.size()>0){
+                                contentfile="c"+std::to_string(i)+ext;
+                                writeContent(contentfile,fieldname);
+                            }
+                        } else  if (records[i].content.size()>0) {
+                            int fid=-1;
+                            int tid=-1;
+                            std::string value="";
+                            for(auto j=0; j<records[i].fields.size(); j++) { 
+                                if (fid==-1 && records[i].fields[j].id==WARC_TYPE && records[i].fields[j].value==" resource") {
+                                    fid=records[i].fields[j].id; 
+                                } if (tid==-1 && records[i].fields[j].id==CONTENT_TYPE) {
+                                    tid=records[i].fields[j].id;
+                                    value=records[i].fields[j].value;
+                                }
+                            }
+                            std::string ext="";
+                            if (value.size()>0) {
+                                std::string app=SplitString(value,'/',0);
+                                std::string file=SplitString(value,'/',1);
+                                ext=mimeToExt(file);
+                            }
+                            contentfile=std::to_string(i)+ext;
+                            writeContent(contentfile,content);
+                        }
+                    }
                 }
             }
             fclose(out);
@@ -276,9 +412,9 @@ class WarcFile {
             for(auto i=0; i <records.size(); i++) {
                 int contentSize=0;
                 fprintf(out,"WARC/1.0\r\n");
-                for(auto j=0; j <records[i].fields.size(); j++) {
-                    if (records[i].fields[j].id==CONTENT_LENGTH) {
-                       contentSize=std::stoi(records[i].fields[j].value);
+                for(auto j=0; j<records[i].fields.size(); j++) {
+                    if (records[i].fields[j].id==CONTENT_LENGTH){
+                        contentSize=std::stoi(records[i].fields[j].value);
                     }
                     std::string field=get_warc_field_name(records[i].fields[j].id);
                     fwrite(&field[0],1,field.size(),out);
@@ -294,14 +430,73 @@ class WarcFile {
                     if (doMergeSplit==false) {
                         content=file.ReadBlock(contentSize);
                     } else {
-                        std::string contentfile=std::to_string(i);
-                        content.resize(contentSize);
-                        FILE *cfin=fopen(contentfile.c_str(), "rb");
-                        int len=fread(&content[0],1,contentSize,cfin);
-                        if (len!=contentSize) printf("File content mismatch. File %d\n", i);
-                        fclose(cfin);
+                        std::string contentfile="h"+std::to_string(i);
+                        content=readFile(contentfile);
+                        if (content.size()>1){
+                            fwrite(&content[0],1,content.size(),out);
+                            auto p=std::find(content.begin(), content.end(), '\n');
+                            std::string fieldname;
+                            std::move(content.begin(), p-1, std::back_inserter(fieldname));
+                            if (fieldname.size()>1 && (fieldname.substr(0,12)=="HTTP/1.1 200")) {
+                                fieldname=content;
+                                std::string del="\r\n";
+                                auto pos = fieldname.find(del);
+                                std::string ext="";
+                                // Search for content type
+                                while (1) {
+                                    std::string linef= fieldname.substr(0, pos);
+                                    std::string value;
+                                    auto p=std::find(linef.begin(), linef.end(), ':');
+                                    std::string fieldn="";
+                                    const std::string contenttype="content-type";
+                                    std::move(linef.begin(), p, std::back_inserter(fieldn));
+                                    std::transform(fieldn.begin(), fieldn.end(), fieldn.begin(), [](unsigned char c){ return std::tolower(c); });
+                                    int fieldID=fieldn==contenttype?1:0;
+                                    //field.id=fieldID;
+                                    p++; // ':'
+                                    std::move(p, linef.end(), std::back_inserter(value));
+                                    if (fieldID>0) {
+                                        std::string app=SplitString(value,'/',0);
+                                        std::string file=SplitString(value,'/',1);
+                                        ext=mimeToExt(file);
+                                        break;
+                                    }
+                                    if (pos==std::string::npos) break;
+                                    fieldname.erase(0, pos + del.length());
+                                    pos=fieldname.find(del);
+                                }
+                                //header
+                                contentfile="c"+std::to_string(i)+ext;
+                                content=readFile(contentfile); 
+                                putc(CR,out); putc(LF,out);
+                                putc(CR,out); putc(LF,out);
+                                if (content.size()>0) {
+                                    fwrite(&content[0],1,content.size(),out);
+                                }
+                            }
+                        } else {
+                            int fid=-1;
+                            int tid=-1;
+                            std::string value="";
+                            for(auto j=0; j<records[i].fields.size(); j++) { 
+                                if (fid==-1 && records[i].fields[j].id==WARC_TYPE && records[i].fields[j].value==" resource") {
+                                    fid=records[i].fields[j].id; 
+                                } if (tid==-1 && records[i].fields[j].id==CONTENT_TYPE) {
+                                    tid=records[i].fields[j].id;
+                                    value=records[i].fields[j].value;
+                                }
+                            }
+                            std::string ext="";
+                            if (value.size()>0) {
+                                std::string app=SplitString(value,'/',0);
+                                std::string file=SplitString(value,'/',1);
+                                ext=mimeToExt(file);
+                            }
+                            contentfile=std::to_string(i)+ext;
+                            std::string fieldname=readFile(contentfile);
+                            if (fieldname.size()>0) fwrite(&fieldname[0],1,fieldname.size(),out);
+                        }
                     }
-                    fwrite(&content[0],1,contentSize,out);
                 }
                 if (file.End()) {
                     break ;
@@ -352,7 +547,7 @@ class WarcFile {
                 int fid=-1;
                 int tid=-1;
                 std::string value="";
-                for(auto j=0; j <records[i].fields.size(); j++) {
+                for(auto j=0; j<records[i].fields.size(); j++) { 
                     if (fid==-1 && records[i].fields[j].id==WARC_TYPE && records[i].fields[j].value==" response") {
                         fid=records[i].fields[j].id; 
                     } if (tid==-1 && records[i].fields[j].id==field) {
@@ -374,7 +569,7 @@ class WarcFile {
 using namespace warcfile;
 
 int main(int argc, char **argv) {
-    if (argc<4 || (argv[1][0]!='e' && argv[1][0]!='d' && argv[1][0]!='l')) {
+    if (argc<4 || (argv[1][0]!='e' && argv[1][0]!='d' && argv[1][0]!='l')  ) {
         printf("warc_f v0.1 (C) 2025 Kaido Orav \nUsage: e[s]|d[m]|l input output\n"), exit(1);
     }
     bool mergesplit=false;

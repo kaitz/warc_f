@@ -1,5 +1,5 @@
-Program for manipulating WARC [(Web ARChive)](https://en.wikipedia.org/wiki/WARC_(file_format))  files. 
-Reordering, dumping and listing of its contents.
+Program for manipulating WARC [(Web ARChive)](https://en.wikipedia.org/wiki/WARC_(file_format)) files.
+The tool offers content reordering, dumping, restoring and listing.
 
 Expected header for WARC file is: WARC/1.0
 
@@ -20,20 +20,26 @@ Expected header for WARC file is: WARC/1.0
       to the record id in the file.
       File is written only when WARC CONTENT_LENGTH present and filled value is larger than 0.
       WARC headers fields are swapped with id's (see table below).
+      
+      If the content has an HTTP header then split it into two files.
+      File names have prefix h - header, c - content or just a number for unidentified content.
+      Based on the type of content, some c or number files have well-known extensions.
       This option creates multiple output files.
   
       dm - In decode mode the WARC header file is read into the memory.
-      After that the output file is created by writing the header and reading/writing
+      After that the output file is created by writing the header and reading/writing 
       its corresponding content file if any.
+      This option restores the original file, assuming that the contents 
+      of the files have not changed.
 * l{n}
 
       List WARC header record WARC_TYPE=="response" field values.
       Default is target-uri's (n=14) to output file.
-      n can be value in the range of 0-26. (see table below)
+      n can be value in the range of 0-27. (see table below)
 
 # Memory usage
-  * e,d - size of the file
-  * es,dm,l - size of the WARC header size
+  * e,d,es - size of the file
+  * dm,l - size of the WARC header size
 
 # WARC field types and values
 These field values are used internally. 
@@ -69,7 +75,7 @@ These field values are used internally.
 | WARC_RESOURCE_TYPE|               27| 
 
 WARC_RESERVED1 and WARC_RESERVED2 are '\r' and '\n' for easier parsing.
-Some fields here are proposed and not final according to  [specifications](https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/).  
+Some fields here are proposed and are not final according to [specifications](https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/). 
 I have seen files with header WARC/1.0 or WARC/1.1 containing proposed fields. It looks like a mess.
 
 Error message "Unexpected field FIELD_NAME" is shown when the input file contains a field not shown in the above table.
